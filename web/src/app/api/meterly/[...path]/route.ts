@@ -5,13 +5,15 @@ import { serverEnv } from "@/lib/server-env"
 // The browser never sees the admin key: every console request goes through this handler,
 // which only forwards to the versioned API and attaches the key server-side.
 const SEGMENT = /^[A-Za-z0-9._:-]+$/
+// "." and ".." pass the character check but would let URL resolution climb out of /v1.
+const DOT_SEGMENT = /^\.{1,2}$/
 const PASSTHROUGH_HEADERS = ["content-type", "content-disposition", "x-request-id"] as const
 
 type Context = { params: Promise<{ path: string[] }> }
 
 async function forward(request: NextRequest, { params }: Context): Promise<Response> {
   const { path } = await params
-  if (path[0] !== "v1" || !path.every((segment) => SEGMENT.test(segment))) {
+  if (path[0] !== "v1" || !path.every((segment) => SEGMENT.test(segment) && !DOT_SEGMENT.test(segment))) {
     return NextResponse.json({ error: { code: "not_found", message: "unknown API route" } }, { status: 404 })
   }
   const env = serverEnv()

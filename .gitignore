@@ -1,0 +1,49 @@
+# local runtime data (Postgres/Redis data dirs, logs)
+.data/
+
+# local virtualenv left at the project root (not part of the project)
+project_venv/
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.hypothesis/
+*.egg-info/
+.coverage
+htmlcov/
+build/
+dist/
+
+# node / next
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+.eslintcache
+coverage/
+playwright-report/
+test-results/
+
+# env
+.env
+.env.*
+!.env.example
+
+# logs, caches, scratch
+*.log
+logs/
+tmp/
+.cache/
+
+# editors / OS
+.idea/
+.vscode/
+.DS_Store
+
+# no workflow config in this repository
+.github/

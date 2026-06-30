@@ -38,7 +38,7 @@ export function InvoiceDocument({ invoice, actions }: { invoice: Invoice; action
         <div>
           <div className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">Invoice</div>
           <div className="mt-1 flex items-center gap-3">
-            <span className="text-[28px] leading-[34px] font-semibold tracking-tight tabular-nums">
+            <span className="text-[22px] leading-[28px] font-semibold tracking-tight whitespace-nowrap tabular-nums sm:text-[28px] sm:leading-[34px]">
               {invoice.number ?? "Draft"}
             </span>
             {invoice.status === "draft" ? null : <StatusBadge status={invoice.status} />}
@@ -73,12 +73,12 @@ export function InvoiceDocument({ invoice, actions }: { invoice: Invoice; action
         </div>
       </dl>
 
-      <div className="overflow-x-auto px-2 sm:px-4">
-        <table className="w-full min-w-[520px] text-[14px] tabular-nums">
+      <div className="px-2 sm:px-4">
+        <table className="w-full text-[14px] tabular-nums">
           <thead>
             <tr className="text-left text-xs text-muted-foreground">
               <th className="px-4 py-3 font-medium">Description</th>
-              <th className="px-4 py-3 text-right font-medium">Quantity</th>
+              <th className="hidden px-4 py-3 text-right font-medium sm:table-cell">Quantity</th>
               <th className="px-4 py-3 text-right font-medium">Amount</th>
             </tr>
           </thead>
@@ -114,8 +114,13 @@ export function InvoiceDocument({ invoice, actions }: { invoice: Invoice; action
                           Brings usage spend up to the committed minimum
                         </div>
                       ) : null}
+                      {line.kind === "usage" ? (
+                        <div className="pl-5 text-xs text-muted-foreground sm:hidden">
+                          Qty {formatNumber(line.quantity)}
+                        </div>
+                      ) : null}
                     </td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">
+                    <td className="hidden px-4 py-3 text-right text-muted-foreground sm:table-cell">
                       {line.kind === "usage" ? formatNumber(line.quantity) : "—"}
                     </td>
                     <td className="px-4 py-3 text-right font-medium">{formatMoney(line.amount)}</td>
@@ -124,8 +129,10 @@ export function InvoiceDocument({ invoice, actions }: { invoice: Invoice; action
                     ? line.details.components.length > 1
                       ? line.details.components.map((c) => (
                           <tr key={`${line.key}-${c.label}`} className="text-[13px] text-muted-foreground">
-                            <td className="py-1.5 pr-4 pl-14">{c.label}</td>
-                            <td className="px-4 py-1.5 text-right">{formatNumber(c.units)}</td>
+                            <td className="py-1.5 pr-4 pl-9 sm:pl-14">{c.label}</td>
+                            <td className="hidden px-4 py-1.5 text-right sm:table-cell">
+                              {formatNumber(c.units)}
+                            </td>
                             <td className="px-4 py-1.5 text-right">{formatMoney(c.amount)}</td>
                           </tr>
                         ))
@@ -134,7 +141,7 @@ export function InvoiceDocument({ invoice, actions }: { invoice: Invoice; action
                   {expanded && line.details.groups.length > 0 ? (
                     <>
                       <tr className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                        <td className="pt-2 pr-4 pb-1 pl-14" colSpan={3}>
+                        <td className="pt-2 pr-4 pb-1 pl-9 sm:pl-14" colSpan={3}>
                           By dimension
                         </td>
                       </tr>
@@ -143,8 +150,10 @@ export function InvoiceDocument({ invoice, actions }: { invoice: Invoice; action
                           key={`${line.key}-${dimensionLabel(g.dimensions)}`}
                           className="text-[13px] text-muted-foreground"
                         >
-                          <td className="py-1.5 pr-4 pl-14">{dimensionLabel(g.dimensions)}</td>
-                          <td className="px-4 py-1.5 text-right">{formatNumber(g.quantity)}</td>
+                          <td className="py-1.5 pr-4 pl-9 sm:pl-14">{dimensionLabel(g.dimensions)}</td>
+                          <td className="hidden px-4 py-1.5 text-right sm:table-cell">
+                            {formatNumber(g.quantity)}
+                          </td>
                           <td className="px-4 py-1.5 text-right">{formatMoney(g.amount)}</td>
                         </tr>
                       ))}

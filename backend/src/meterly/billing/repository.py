@@ -72,8 +72,13 @@ class CustomerRepository:
     ) -> tuple[list[Customer], int]:
         stmt = select(Customer)
         if query:
-            pattern = f"%{query.strip()}%"
-            stmt = stmt.where(Customer.name.ilike(pattern) | Customer.external_id.ilike(pattern))
+            # Escape LIKE wildcards so "acme_eu" or "100%" match literally.
+            needle = query.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            pattern = f"%{needle}%"
+            stmt = stmt.where(
+                Customer.name.ilike(pattern, escape="\\")
+                | Customer.external_id.ilike(pattern, escape="\\")
+            )
         total = await self._session.scalar(select(func.count()).select_from(stmt.subquery()))
         rows = await self._session.scalars(stmt.order_by(Customer.name).limit(limit).offset(offset))
         return list(rows), int(total or 0)

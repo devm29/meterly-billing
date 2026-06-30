@@ -11,9 +11,14 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+# Dependencies get their own layer, keyed on pyproject.toml only, so a source change
+# reinstalls just the meterly package instead of every wheel.
 COPY pyproject.toml ./
+RUN pip install hatchling \
+    && mkdir -p src/meterly && touch src/meterly/__init__.py \
+    && pip install --no-build-isolation ".[pdf]"
 COPY src ./src
-RUN pip install ".[pdf]"
+RUN pip install --no-deps --no-build-isolation --force-reinstall .
 
 COPY alembic.ini ./
 COPY alembic ./alembic

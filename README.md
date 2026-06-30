@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="https://img.shields.io/badge/%E2%97%94-Meterly-0A84FF?style=for-the-badge&labelColor=0A84FF&color=1D1D1F" alt="Meterly" height="36" />
-
 # Meterly
 
 **Usage metering and usage-based billing that is exact to the cent.**
@@ -19,7 +17,6 @@ Idempotent event ingestion, declarative billable metrics, typed pricing models, 
 [![shadcn/ui](https://img.shields.io/badge/shadcn%2Fui-components-111111?logo=shadcnui&logoColor=white)](https://ui.shadcn.com/)
 [![mypy](https://img.shields.io/badge/mypy-strict-2A6DB2)](https://mypy-lang.org/)
 [![Hypothesis](https://img.shields.io/badge/tests-hypothesis-6E56CF)](https://hypothesis.readthedocs.io/)
-[![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)](.github/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-34C759.svg)](LICENSE)
 
 [Why](#why-this-exists) · [Features](#feature-highlights) · [Screenshots](#screenshots) · [Architecture](#architecture) · [Quickstart](#quickstart) · [API](#api-overview) · [Decisions](#engineering-decisions-and-trade-offs)
@@ -34,7 +31,7 @@ Idempotent event ingestion, declarative billable metrics, typed pricing models, 
   <img alt="Meterly console: billed MRR, revenue split into subscriptions and usage, token usage by model, and recent invoices" src="docs/screenshots/overview-light.png" />
 </picture>
 
-<p align="center"><sub>The overview against seeded demo data: six months of an AI platform's usage, 24 customers and about 260k events. Switch GitHub to dark mode to see the dark theme.</sub></p>
+<p align="center"><sub>The overview against seeded demo data: six months of an AI platform's usage, 24 customers and about 260k events. Viewers with a dark colour scheme see the dark theme.</sub></p>
 
 ---
 
@@ -53,7 +50,7 @@ Meterly is a compact billing engine in the spirit of [Lago](https://github.com/g
 
 | | |
 |---|---|
-| **Idempotent batch ingestion** | `POST /v1/events/batch` returns `202` with a status for each item (`accepted`, `duplicate` or `rejected`, plus `late` and per-metric warnings). Items are validated one at a time with Pydantic v2, so one bad event never sinks the batch. Dedupe on `(customer, transaction_id)` uses `INSERT … ON CONFLICT DO NOTHING RETURNING`. |
+| **Idempotent batch ingestion** | `POST /v1/events/batch` returns `202` with a status for each item (`accepted`, `duplicate` or `rejected`, plus `late` and per-metric warnings). Items are validated one at a time with Pydantic v2, so one bad event never sinks the batch, including one dated outside the partitioned history (`timestamp_out_of_range`). Dedupe on `(customer, transaction_id)` uses `INSERT … ON CONFLICT DO NOTHING RETURNING`. |
 | **Declarative billable metrics** | `COUNT`, `SUM`, `MAX`, `UNIQUE_COUNT` and `LATEST` over a dot-path into event properties (`usage.total_tokens`), with up to three group-by dimensions. A metric created later is backfilled from the raw log under an advisory lock, so every event lands in its rollups exactly once. |
 | **Hourly rollups plus an audit path** | `usage_rollups_hourly` and `usage_unique_values` are upserted in the same transaction as the raw insert. `GET /v1/metrics/{code}/reconcile` recomputes a window straight from the partitioned raw events and compares the two. |
 | **Pricing as a discriminated union** | `flat`, `per_unit`, `package`, `volume` and `graduated` prices, plus free allowances, per-charge minimum spend and plan-level minimum commitments. Tier ordering is validated at parse time. The engine calculates at 60 digits of precision and rounds only at the end. |
@@ -62,7 +59,7 @@ Meterly is a compact billing engine in the spirit of [Lago](https://github.com/g
 | **Invoice rendering** | The HTML invoice comes from a Jinja2 template. PDFs use WeasyPrint, falling back to fpdf2 on hosts without Pango. They render off the event loop and are stored apart from the immutable invoice row. |
 | **Re-rating with a diff** | Apply candidate prices to a draft's frozen usage, preview the before/after change for every line, then apply. Finalized invoices refuse this. |
 | **Real-time entitlements** | `GET /v1/customers/{id}/entitlements/{feature}` answers "is this allowed, and how much is left?" from the current period's rollups. Results are cached in Redis under a per-customer generation counter, so invalidation is a single `INCR` with no key scans. |
-| **Finance console** | Next.js 15, strict TypeScript, shadcn/ui, Recharts and TanStack Query, with an Apple-inspired design in light and dark themes. Screens cover MRR, revenue mix, usage timelines, invoices with tier breakdowns, a re-rating panel and a pricing simulator. |
+| **Finance console** | Next.js 15, strict TypeScript, shadcn/ui, Recharts and TanStack Query, with a warm "ledger" palette and IBM Plex type in light and dark themes, down to phone width. Screens cover MRR, revenue mix, usage timelines, invoices with tier breakdowns, a re-rating panel and a pricing simulator. |
 
 ## Screenshots
 
@@ -97,6 +94,15 @@ Meterly is a compact billing engine in the spirit of [Lago](https://github.com/g
 **Plans.** Versioned terms: graduated and volume tiers, packages, free units and minimums.
 
 ![Starter, Growth and Scale plans with their charges, tiers and entitlements](docs/screenshots/plans.png)
+
+**On a phone.** The console works down to 390 px: KPI tiles stack, and invoice lines fold their quantity under the description so the amount column never scrolls off-screen.
+
+<p>
+  <img alt="Overview at phone width with stacked KPI tiles" src="docs/screenshots/mobile-overview.png" width="300" />
+  <img alt="Finalized invoice at phone width with quantities folded under each line" src="docs/screenshots/mobile-invoice.png" width="300" />
+</p>
+
+All screenshots are captured with Playwright (1440×900 and 390×844) against the Compose stack after `scripts/seed.py`.
 
 ## Architecture
 
@@ -361,7 +367,7 @@ erDiagram
 | Documents | **Jinja2** + **WeasyPrint** (fpdf2 fallback) | HTML invoice template, rendered to PDF |
 | Quality | **mypy --strict**, **Ruff**, **pytest**, **Hypothesis**, **time-machine** | Strict types, property tests for money, frozen clocks for billing periods |
 | Console | **Next.js 15** App Router, **TypeScript strict**, **shadcn/ui**, **Recharts**, **TanStack Query**, **Zod** | API responses parsed by Zod schemas that a contract test checks against the live API |
-| Delivery | **Docker Compose**, **GitHub Actions** | Postgres 16 + Redis 7 + migrate + API + worker + web. CI runs backend, web and contract jobs. |
+| Delivery | **Docker Compose** | Postgres 16 + Redis 7 + migrate + API + worker + web from one command |
 
 ## Engineering decisions and trade-offs
 
@@ -439,14 +445,31 @@ meterly-billing/
 
 ## Quickstart
 
+### Docker Compose (recommended)
+
+Only Docker is needed. The default API keys are the development placeholders `mtr_admin_dev_only` and `mtr_ingest_dev_only`; set `METERLY_ADMIN_API_KEY` and `METERLY_INGEST_API_KEY` in your shell to override them.
+
+```bash
+# 1. Postgres, Redis, migrations, API and console (the worker comes last)
+docker compose up -d --build --wait postgres redis api web
+
+# 2. Optional: six months of demo data (about a minute and a half)
+docker compose run --rm api python scripts/seed.py
+
+# 3. The worker: period close, finalization, PDFs, partitions
+docker compose up -d worker
+```
+
+The console is on http://localhost:3107 and the API docs on http://localhost:8107/docs. Start the worker after seeding: the seed replays its timeline day by day, and a worker running on the real clock would close those periods before their usage arrives (the seed then stops with `period_closed`). The backend image installs WeasyPrint's native dependencies, so PDFs render with WeasyPrint there. `docker compose down -v` removes everything, including the database volume.
+
 ### Local
 
-Prerequisites: Python 3.12+, Node 22+ with pnpm 9, a PostgreSQL 16 or 17 server binary (Homebrew's `postgresql@17` works), and `redis-server`.
+Prerequisites: Python 3.12 (see `backend/.python-version`), Node 22 with pnpm 9 (see `web/.nvmrc` and `packageManager`), a PostgreSQL 16 or 17 server binary (Homebrew's `postgresql@17` works), and `redis-server`.
 
 ```bash
 make install     # backend venv (editable, with dev extras) + pnpm install
 make db-up       # Postgres on :5507 and Redis on :6407, data under .data/
-make seed        # migrations + six months of demo data (~65 s)
+make seed        # migrations + six months of demo data
 make api         # http://localhost:8107/docs
 make worker      # period close, finalization, PDFs, partitions
 make web         # console on http://localhost:3107
@@ -456,34 +479,62 @@ make web         # console on http://localhost:3107
 
 The seed replays its timeline day by day through the real services. Every demo invoice was produced by the same period-close path the worker runs.
 
-### Docker Compose
-
-```bash
-docker compose up --build                                  # postgres, redis, migrate, api, worker, web
-docker compose run --rm api python scripts/seed.py         # optional demo data
-```
-
-The console is on http://localhost:3107 and the API on http://localhost:8107/docs. The backend image installs WeasyPrint's native dependencies, so PDFs render with WeasyPrint there.
-
 ### Try it
 
+These responses were captured from the Compose stack above after seeding. Event timestamps must fall in a period that is not yet invoiced, so the example uses "ten minutes ago".
+
 ```bash
-# Ingest two events; the second is a duplicate of the first
+TS=$(date -u -v-10M +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -d '-10 min' +%Y-%m-%dT%H:%M:%SZ)
+
+# Ingest three events: one new, one duplicate of it, one for an unknown customer
 curl -s localhost:8107/v1/events/batch \
   -H 'x-api-key: mtr_ingest_dev_only' -H 'content-type: application/json' \
   -d '{"events":[
-    {"transaction_id":"tx_1","customer_id":"northwind","code":"llm.completion",
-     "timestamp":"2026-10-04T12:00:00Z",
+    {"transaction_id":"tx_1","customer_id":"northwind","code":"llm.completion","timestamp":"'$TS'",
      "properties":{"model":"claude-sonnet-4-5","end_user_id":"u_1","usage":{"total_tokens":1200}}},
-    {"transaction_id":"tx_1","customer_id":"northwind","code":"llm.completion",
-     "timestamp":"2026-10-04T12:00:00Z","properties":{}}]}'
+    {"transaction_id":"tx_1","customer_id":"northwind","code":"llm.completion","timestamp":"'$TS'","properties":{}},
+    {"transaction_id":"tx_2","customer_id":"nobody","code":"llm.completion","timestamp":"'$TS'","properties":{}}]}'
+```
 
-# Is this customer still within quota?
+```json
+{"accepted":1,"duplicates":1,"rejected":1,"results":[
+  {"index":0,"transaction_id":"tx_1","status":"accepted","late":false,"error":null,"warnings":[]},
+  {"index":1,"transaction_id":"tx_1","status":"duplicate","late":false,"error":null,"warnings":[]},
+  {"index":2,"transaction_id":"tx_2","status":"rejected","late":false,
+   "error":{"code":"unknown_customer","message":"no customer with external id 'nobody'"},"warnings":[]}]}
+```
+
+Is this customer still within quota? (The ingest key is enough.)
+
+```bash
 curl -s localhost:8107/v1/customers/northwind/entitlements/seats -H 'x-api-key: mtr_ingest_dev_only'
+```
 
-# Price a quantity with any model, no persistence
+```json
+{"feature":"seats","name":"Seats","allowed":true,"reason":"within_quota","metric_code":"seats",
+ "limit":"500","used":"99","remaining":"401","period_start":"2026-10-10","period_end":"2026-11-10",
+ "plan_code":"scale","cached":false}
+```
+
+Price a quantity with any model, without persisting anything:
+
+```bash
 curl -s localhost:8107/v1/pricing/quote -H 'x-api-key: mtr_admin_dev_only' -H 'content-type: application/json' \
   -d '{"price":{"model":"graduated","tiers":[{"up_to":"1000","unit_price":"0.10"},{"up_to":null,"unit_price":"0.05"}]},"quantity":"1500"}'
+```
+
+```json
+{"quantity":"1500","billable_quantity":"1500","exact":"125.00","amount":{"amount":"125.00","currency":"USD"},
+ "components":[
+   {"label":"Tier 1 (0–1,000)","units":"1000","unit_price":"0.10","flat_fee":"0","exact":"100.00","amount":{"amount":"100.00","currency":"USD"}},
+   {"label":"Tier 2 (1,000+)","units":"500","unit_price":"0.05","flat_fee":"0","exact":"25.00","amount":{"amount":"25.00","currency":"USD"}}]}
+```
+
+Scopes are enforced per route: the ingest key cannot read plans, and no key at all is a 401.
+
+```text
+GET /v1/plans  (ingest key) -> 403 {"error":{"code":"forbidden","message":"this API key cannot perform admin operations"}}
+GET /v1/plans  (no key)     -> 401 {"error":{"code":"unauthorized","message":"missing x-api-key header"}}
 ```
 
 ## Configuration
@@ -522,15 +573,15 @@ Console (`web/.env.example`), server-side only:
 make test        # pytest (unit + integration) and vitest
 make typecheck   # mypy --strict and tsc --noEmit
 make lint        # ruff + eslint + prettier
-make ci          # all of the above plus the production build
+make check       # all of the above plus the production build
 ```
 
 - **Property-based tests (Hypothesis).** These check that graduated tiers cover the whole quantity and add up to the total in every currency (including zero-decimal JPY). Pricing must never decrease as quantity grows. Volume, graduated and per-unit pricing must agree on a single tier. `allocate` must never lose a cent. Prorated invoices with a mid-period plan change must always add up to their subtotal, and a billing period must always contain the day it was computed for.
 - **Time-dependent logic (time-machine).** Integration tests freeze the clock to cover the full close, re-rate and finalize cycle, trials with minimum commitments, mid-cycle upgrades, scheduled plan changes, and event partition boundaries. Unit tests pin anchor clamping (Jan 31 to Feb 28, then back to Mar 31).
 - **Concurrency and correctness.** Tests cover identical batches sent concurrently, replayed batches, a missing property that skips only the metric that needs it, rollups that must match raw events for every aggregation, one failing subscription that must not stall the close cycle, and the database triggers that block edits to finalized invoices.
-- **Contract test.** The console's Zod schemas parse live API responses, which catches drift between the two. It runs in CI against a seeded API, or locally with `METERLY_CONTRACT_API_URL=http://localhost:8107 pnpm test` in `web/`.
+- **Contract test.** The console's Zod schemas parse live API responses, which catches drift between the two. It is skipped unless you point it at a seeded API: `METERLY_CONTRACT_API_URL=http://localhost:8107 pnpm test` in `web/`.
 
-The backend suite runs against a real Postgres (`meterly_test` on :5507). It currently passes 66 tests in about 10 seconds.
+The backend suite runs against a real Postgres (`meterly_test` on :5507, or any database named by `METERLY_TEST_DATABASE_URL`). It currently passes 70 tests (35 unit, 35 integration) in under 20 seconds. The console has 23 Vitest tests (views, formatting, pricing helpers and the `/api/meterly` proxy) plus the opt-in contract test.
 
 ### Load generator
 
@@ -538,14 +589,16 @@ The backend suite runs against a real Postgres (`meterly_test` on :5507). It cur
 make loadgen     # 50,000 events, batches of 500, 8 concurrent clients, 2% duplicates
 ```
 
-Sample run on a laptop (Apple Silicon, a single uvicorn process, local Postgres):
+It needs the dev dependencies (`httpx`), so run it from the local venv rather than the API image. A run against the Compose stack with the API container capped at 768 MB, after seeding:
 
 ```text
-events     50,000 in 8.7s  (5,716 events/s)
+events     50,000 in 15.0s  (3,341 events/s)
 batches    100 x 500, concurrency 8
-latency    p50 645 ms   p95 996 ms   max 1869 ms
+latency    p50 1078 ms   p95 2109 ms   max 3149 ms
 results    accepted 48,995  duplicates 1,005  rejected 0  http errors 0
 ```
+
+The same run on a laptop with a local Postgres and no container limits managed about 5,700 events/s.
 
 ## API overview
 

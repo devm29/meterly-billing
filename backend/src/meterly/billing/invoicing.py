@@ -110,16 +110,20 @@ class InvoiceService:
                 return filename, stored
         return filename, await self._render_pdf(invoice_out(invoice))
 
-    async def store_document(self, invoice_id: UUID) -> None:
-        """Render a finalized invoice once and keep the bytes, outside the finalize lock."""
+    async def store_document(self, invoice_id: UUID) -> bool:
+        """Render a finalized invoice once and keep the bytes, outside the finalize lock.
+
+        Returns False when the invoice is not finalized, so nothing was stored.
+        """
         invoice = await self._load(invoice_id)
         if invoice.status != InvoiceStatus.FINALIZED:
             await self._session.rollback()
-            return
+            return False
         content = await self._render_pdf(invoice_out(invoice))
         await self._invoices.store_pdf(invoice.id, content)
         await self._session.commit()
         log.info("invoice.rendered", invoice_id=str(invoice.id), bytes=len(content))
+        return True
 
     async def _render_pdf(self, invoice: InvoiceOut) -> bytes:
         # WeasyPrint/fpdf are synchronous and CPU-bound; keep them off the event loop.
@@ -342,8 +346,9 @@ async def store_documents(
     for invoice_id in invoice_ids:
         try:
             async with factory() as session:
-                await InvoiceService(session, settings, renderer).store_document(invoice_id)
-            stored += 1
+                service = InvoiceService(session, settings, renderer)
+                if await service.store_document(invoice_id):
+                    stored += 1
         except Exception:
             log.exception("invoice.render_failed", invoice_id=str(invoice_id))
     return stored

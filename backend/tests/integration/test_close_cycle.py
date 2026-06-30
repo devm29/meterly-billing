@@ -1,6 +1,7 @@
 import copy
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import UUID
 
 import pytest
 import time_machine
@@ -9,6 +10,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from meterly.api.container import Container
+from meterly.billing.invoicing import store_documents
 from tests.integration.conftest import GROWTH_TERMS, api_events, bootstrap, ingest
 
 MARCH = datetime(2026, 3, 1, tzinfo=UTC)
@@ -150,3 +153,15 @@ async def test_finalized_invoice_pdf_is_stored_after_finalization(
     assert bytes(stored).startswith(b"%PDF")
     pdf = await client.get(f"/v1/invoices/{draft}/pdf")
     assert pdf.content == bytes(stored)
+
+
+async def test_store_documents_counts_only_finalized_invoices(
+    client: AsyncClient, container: Container
+) -> None:
+    draft = await _draft(client)
+    sessions, settings, renderer = container.sessions, container.settings, container.renderer
+
+    assert await store_documents(sessions, settings, renderer, [UUID(draft)]) == 0
+    with time_machine.travel(CLOSE_TIME, tick=False):
+        assert (await client.post(f"/v1/invoices/{draft}/finalize")).status_code == 200
+    assert await store_documents(sessions, settings, renderer, [UUID(draft)]) == 1

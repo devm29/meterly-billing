@@ -17,7 +17,7 @@ import {
 import { server } from "@/test/server"
 
 // Parses live API responses with the console's schemas, so drift between the Pydantic models
-// and these hand-written Zod mirrors fails CI. Point it at a seeded API to run it:
+// and these hand-written Zod mirrors fails the suite. Point it at a seeded API to run it:
 //   METERLY_CONTRACT_API_URL=http://localhost:8107 pnpm test
 const base = process.env.METERLY_CONTRACT_API_URL
 const key = process.env.METERLY_ADMIN_API_KEY ?? "mtr_admin_dev_only"

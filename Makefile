@@ -7,7 +7,7 @@ PY := $(VENV)/bin/python
 PG_BIN ?= $(firstword $(wildcard /opt/homebrew/opt/postgresql@17/bin /opt/homebrew/opt/postgresql@16/bin /usr/local/opt/postgresql@17/bin /usr/local/opt/postgresql@16/bin) $(shell pg_config --bindir 2>/dev/null))
 PG_DATA := .data/pg
 
-.PHONY: help install db-up db-down migrate seed api worker web test lint typecheck format build loadgen ci
+.PHONY: help install db-up db-down migrate seed api worker web test lint typecheck format build loadgen check
 
 help:
 	@grep -E '^[a-z-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-12s %s\n", $$1, $$2}'
@@ -69,4 +69,4 @@ format: ## Auto-format everything
 build: ## Production build of the console
 	cd $(WEB) && pnpm build
 
-ci: lint typecheck test build ## Everything CI runs
+check: lint typecheck test build ## Lint, typecheck, test and build everything

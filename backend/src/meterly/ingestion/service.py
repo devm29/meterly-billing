@@ -100,6 +100,7 @@ class IngestionService:
         await share_metric_definitions(self._session)
         customers = await self._events.customers(e.customer_id for _, e in parsed)
         metrics_by_event = await self._metrics.by_event_codes([e.code for _, e in parsed])
+        stored = await self._events.partition_range()
         max_future = now + timedelta(seconds=self._settings.max_future_skew_seconds)
         late_before = now - timedelta(minutes=self._settings.late_event_threshold_minutes)
 
@@ -122,6 +123,15 @@ class IngestionService:
                     event.transaction_id,
                     "timestamp_in_future",
                     "event timestamp is ahead of the server clock",
+                )
+                continue
+            if stored is None or not stored[0] <= ts < stored[1]:
+                # Inserting outside the partitioned range would fail the whole batch.
+                results[index] = _rejected(
+                    index,
+                    event.transaction_id,
+                    "timestamp_out_of_range",
+                    "event timestamp is outside the retained event history",
                 )
                 continue
             if customer.closed_through is not None and ts.date() < customer.closed_through:

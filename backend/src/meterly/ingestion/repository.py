@@ -6,7 +6,7 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import case, func, or_, select, tuple_
+from sqlalchemy import case, func, or_, select, text, tuple_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -49,6 +49,28 @@ def _chunks[T](items: Sequence[T], size: int = _CHUNK) -> Iterable[Sequence[T]]:
 class IngestionRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
+
+    async def partition_range(self) -> tuple[datetime, datetime] | None:
+        """The [start, end) span covered by usage_events partitions; None if there are none."""
+        row = (
+            await self._session.execute(
+                text(
+                    """
+                    SELECT min(lower_bound), max(upper_bound) FROM (
+                        SELECT (regexp_match(pg_get_expr(c.relpartbound, c.oid),
+                                    'FROM \\(''([^'']+)''\\) TO \\(''([^'']+)''\\)'))
+                               AS bounds
+                        FROM pg_inherits i JOIN pg_class c ON c.oid = i.inhrelid
+                        WHERE i.inhparent = 'usage_events'::regclass
+                    ) p, LATERAL (SELECT p.bounds[1]::timestamptz AS lower_bound,
+                                         p.bounds[2]::timestamptz AS upper_bound) b
+                    """
+                )
+            )
+        ).one()
+        if row[0] is None or row[1] is None:
+            return None
+        return row[0], row[1]
 
     async def customers(self, external_ids: Iterable[str]) -> dict[str, CustomerRef]:
         """Resolve customers and how far they are invoiced, holding a share lock on each.

@@ -165,3 +165,15 @@ async def test_rollups_agree_with_raw_events_for_every_aggregation(client: Async
         params={"metric": "tokens", "days": 1, "granularity": "hour", "by_group": "true"},
     )
     assert series.json()["series"] == ["sonnet", "haiku"]
+
+
+@time_machine.travel(NOW, tick=False)
+async def test_event_older_than_retained_history_is_rejected_alone(client: AsyncClient) -> None:
+    await bootstrap(client)
+    events = api_events("acme", 1, NOW - timedelta(minutes=5))
+    events += api_events("acme", 1, datetime(2015, 1, 1, tzinfo=UTC), prefix="ancient")
+
+    body = await ingest(client, events)
+
+    assert (body["accepted"], body["rejected"]) == (1, 1)
+    assert body["results"][1]["error"]["code"] == "timestamp_out_of_range"

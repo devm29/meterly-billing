@@ -1,0 +1,76 @@
+[project]
+name = "meterly"
+version = "0.1.0"
+description = "Usage metering and usage-based billing engine"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic[email]>=2.9",
+    "pydantic-settings>=2.6",
+    "sqlalchemy[asyncio]>=2.1",
+    "asyncpg>=0.30",
+    "alembic>=1.14",
+    "arq>=0.26",
+    "redis>=5.2",
+    "jinja2>=3.1",
+    "fpdf2>=2.8",
+    "structlog>=24.4",
+    "orjson>=3.10",
+]
+
+[project.optional-dependencies]
+pdf = ["weasyprint>=63"]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "hypothesis>=6.120",
+    "time-machine>=2.16",
+    "httpx>=0.28",
+    "mypy>=1.13",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/meterly"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "ASYNC", "PT", "DTZ", "N", "C4", "PIE", "RET"]
+# Typographic dashes and multiplication signs are intentional in user-facing labels.
+ignore = ["B008", "RUF001"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["DTZ001"]
+"alembic/versions/**" = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+files = ["src/meterly", "scripts"]
+
+[[tool.mypy.overrides]]
+module = ["arq.*", "fpdf.*", "weasyprint.*"]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+markers = ["integration: requires PostgreSQL and Redis"]

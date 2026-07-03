@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ invoice.number or "Draft invoice" }} · {{ seller_name }}</title>
+<style>
+  @page { size: A4; margin: 18mm; }
+  :root { --fg: #1d1d1f; --muted: #6e6e73; --hair: #e5e5ea; --canvas: #f5f5f7; --accent: #0071e3; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif; color: var(--fg); -webkit-font-smoothing: antialiased; }
+  .sheet { max-width: 760px; margin: 0 auto; padding: 40px 8px; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; }
+  h1 { font-size: 28px; line-height: 34px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; }
+  .muted { color: var(--muted); }
+  .badge { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: 11px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; background: var(--canvas); color: var(--muted); }
+  .badge.finalized { background: #e8f8ec; color: #1d7a35; }
+  .meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; padding: 20px 0; border-top: 1px solid var(--hair); border-bottom: 1px solid var(--hair); margin-bottom: 28px; }
+  .meta dt { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 4px; }
+  .meta dd { margin: 0; font-weight: 500; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 0 0 8px; border-bottom: 1px solid var(--hair); }
+  td { padding: 12px 0; border-bottom: 1px solid var(--hair); vertical-align: top; }
+  .num { text-align: right; white-space: nowrap; }
+  .sub td { padding: 4px 0 4px 16px; border-bottom: 0; font-size: 12px; color: var(--muted); }
+  .sub td.num { padding-left: 0; }
+  .totals { margin-left: auto; width: 280px; margin-top: 20px; }
+  .totals div { display: flex; justify-content: space-between; padding: 6px 0; }
+  .totals .grand { font-size: 17px; font-weight: 600; border-top: 1px solid var(--fg); margin-top: 6px; padding-top: 12px; }
+  footer { margin-top: 48px; font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main class="sheet">
+  <header>
+    <div>
+      <h1>Invoice</h1>
+      <div class="muted">{{ invoice.number or "Draft — not yet issued" }}</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-weight:600">{{ seller_name }}</div>
+      <div class="muted">{{ seller_address }}</div>
+      <div style="margin-top:8px"><span class="badge {{ invoice.status }}">{{ invoice.status }}</span></div>
+    </div>
+  </header>
+  <dl class="meta">
+    <div><dt>Billed to</dt><dd>{{ invoice.customer_name }}</dd><div class="muted">{{ invoice.customer_id }}</div></div>
+    <div><dt>Service period</dt><dd>{{ invoice.period_start | day }} – {{ invoice.period_end | day }}</dd><div class="muted">end date exclusive</div></div>
+    <div><dt>Issued</dt><dd>{{ invoice.finalized_at.date() | day if invoice.finalized_at else "Pending" }}</dd></div>
+  </dl>
+  <table>
+    <thead><tr><th>Description</th><th class="num">Quantity</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+    {% for line in invoice.lines %}
+      <tr><td>{{ line.description }}</td><td class="num">{{ line.quantity | qty }}</td><td class="num">{{ line.amount | money }}</td></tr>
+      {% if line.details.components | length > 1 %}
+        {% for c in line.details.components %}
+        <tr class="sub"><td>{{ c.label }}</td><td class="num">{{ c.units | qty }}</td><td class="num">{{ c.amount | money }}</td></tr>
+        {% endfor %}
+      {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+  <section class="totals">
+    <div><span class="muted">Subtotal</span><span>{{ invoice.subtotal | money }}</span></div>
+    <div class="grand"><span>Total due</span><span>{{ invoice.total | money }}</span></div>
+  </section>
+  <footer>Amounts are rounded once per line to the currency's minor unit using banker's rounding (half-even). Tier and dimension breakdowns are allocated so they always sum to their line.</footer>
+</main>
+</body>
+</html>

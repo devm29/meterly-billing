@@ -1,0 +1,65 @@
+name: meterly
+
+x-backend-env: &backend-env
+  METERLY_DATABASE_URL: postgresql+asyncpg://meterly:meterly@postgres:5432/meterly
+  METERLY_REDIS_URL: redis://redis:6379/0
+  METERLY_CORS_ORIGINS: '["http://localhost:3107"]'
+  METERLY_LOG_JSON: "true"
+  METERLY_ADMIN_API_KEY: ${METERLY_ADMIN_API_KEY:-mtr_admin_dev_only}
+  METERLY_INGEST_API_KEY: ${METERLY_INGEST_API_KEY:-mtr_ingest_dev_only}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: meterly
+      POSTGRES_PASSWORD: meterly
+      POSTGRES_DB: meterly
+    ports: ["5507:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meterly"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6407:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  migrate:
+    build: ./backend
+    command: ["alembic", "upgrade", "head"]
+    environment: *backend-env
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    build: ./backend
+    environment: *backend-env
+    ports: ["8107:8107"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  worker:
+    build: ./backend
+    command: ["arq", "meterly.worker.main.WorkerSettings"]
+    environment: *backend-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+
+  web:
+    build: ./web
+    environment:
+      METERLY_API_URL: http://api:8107
+      METERLY_ADMIN_API_KEY: ${METERLY_ADMIN_API_KEY:-mtr_admin_dev_only}
+    ports: ["3107:3107"]
+    depends_on: [api]
+
+volumes:
+  pgdata:
